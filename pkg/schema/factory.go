@@ -63,8 +63,8 @@ func (c *Collection) removeOldRecords(access *accesscontrol.AccessSet, user user
 }
 
 func (c *Collection) addToCache(access *accesscontrol.AccessSet, user user.Info, schemas *types.APISchemas) {
-	c.cache.Add(access.ID, schemas, 24*time.Hour)
-	c.userCache.Add(user.GetName(), access.ID, 24*time.Hour)
+	c.cache.Add(access.ID, schemas, 720*time.Hour)
+	c.userCache.Add(user.GetName(), access.ID, 720*time.Hour)
 }
 
 // PurgeUserRecords removes a record from the backing LRU cache before expiry
