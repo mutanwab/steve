@@ -23,12 +23,12 @@ func newSchemas() (*types.APISchemas, error) {
 
 func (c *Collection) Schemas(user user.Info) (*types.APISchemas, error) {
 	access := c.as.AccessFor(user)
-	logrus.Info("=================user: %s", user.GetName())
-	logrus.Info("=================access id: %s", access.ID)
-	logrus.Info("=================cache steve: %#v", c.cache.Keys())
-	logrus.Info("=================cache steve: %d", len(c.cache.Keys()))
-	logrus.Info("=================schemas steve: %d", len(c.schemas))
-	logrus.Info("=================user cache steve: %d", len(c.userCache.Keys()))
+	logrus.Infof("=================user: %s", user.GetName())
+	logrus.Infof("=================access id: %s", access.ID)
+	logrus.Infof("=================cache steve: %#v", c.cache.Keys())
+	logrus.Infof("=================cache steve: %d", len(c.cache.Keys()))
+	logrus.Infof("=================schemas steve: %d", len(c.schemas))
+	logrus.Infof("=================user cache steve: %d", len(c.userCache.Keys()))
 	c.removeOldRecords(access, user)
 	val, ok := c.cache.Get(access.ID)
 	if ok {
