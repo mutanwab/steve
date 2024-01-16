@@ -14,6 +14,7 @@ type Handlers struct {
 	APIRoot     http.Handler
 	K8sProxy    http.Handler
 	Next        http.Handler
+	Gientech    http.Handler
 }
 
 func Routes(h Handlers) http.Handler {
@@ -38,6 +39,7 @@ func Routes(h Handlers) http.Handler {
 	m.PathPrefix("/apis").Handler(h.K8sProxy)
 	m.PathPrefix("/openapi").Handler(h.K8sProxy)
 	m.PathPrefix("/version").Handler(h.K8sProxy)
+	m.Path("/get/cachetimeout").Handler(h.Gientech)
 	m.NotFoundHandler = h.Next
 
 	return m

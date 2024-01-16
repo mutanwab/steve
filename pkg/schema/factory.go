@@ -3,14 +3,31 @@ package schema
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/rancher/apiserver/pkg/builtin"
 	"github.com/rancher/apiserver/pkg/types"
 	"github.com/rancher/steve/pkg/accesscontrol"
 	"github.com/rancher/steve/pkg/attributes"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apiserver/pkg/authentication/user"
 )
+
+var CacheTimeout = time.Duration(3 * 30 * 24)
+
+func init() {
+	cacheTimeout := os.Getenv("CATTLE_CACHE_TIMEOUT")
+	if cacheTimeout != "" {
+		num, err := strconv.Atoi(cacheTimeout)
+		if err != nil {
+			logrus.Errorf("CATTLE_CACHE_TIMEOUT string to int error: %s", err.Error())
+			return
+		}
+		CacheTimeout = time.Duration(num)
+	}
+}
 
 func newSchemas() (*types.APISchemas, error) {
 	apiSchemas := types.EmptyAPISchemas()
@@ -23,12 +40,12 @@ func newSchemas() (*types.APISchemas, error) {
 
 func (c *Collection) Schemas(user user.Info) (*types.APISchemas, error) {
 	access := c.as.AccessFor(user)
-	logrus.Infof("=================user: %s", user.GetName())
-	logrus.Infof("=================access id: %s", access.ID)
-	logrus.Infof("=================cache steve: %#v", c.cache.Keys())
-	logrus.Infof("=================cache steve: %d", len(c.cache.Keys()))
-	logrus.Infof("=================schemas steve: %d", len(c.schemas))
-	logrus.Infof("=================user cache steve: %d", len(c.userCache.Keys()))
+	logrus.Debugf("=================user: %s", user.GetName())
+	logrus.Debugf("=================access id: %s", access.ID)
+	logrus.Debugf("=================cache steve: %#v", c.cache.Keys())
+	logrus.Debugf("=================cache steve: %d", len(c.cache.Keys()))
+	logrus.Debugf("=================schemas steve: %d", len(c.schemas))
+	logrus.Debugf("=================user cache steve: %d", len(c.userCache.Keys()))
 	c.removeOldRecords(access, user)
 	val, ok := c.cache.Get(access.ID)
 	if ok {
@@ -58,13 +75,18 @@ func (c *Collection) removeOldRecords(access *accesscontrol.AccessSet, user user
 }
 
 func (c *Collection) addToCache(access *accesscontrol.AccessSet, user user.Info, schemas *types.APISchemas) {
-	c.cache.Add(access.ID, schemas, 720*time.Hour)
-	c.userCache.Add(user.GetName(), access.ID, 720*time.Hour)
+	c.cache.Add(access.ID, schemas, CacheTimeout*time.Hour)
+	c.userCache.Add(user.GetName(), access.ID, CacheTimeout*time.Hour)
+	c.userTimeoutCache.Store(access.ID, &UserTimeoutCacheValue{
+		Timeout:  time.Now().Add(CacheTimeout * time.Hour),
+		UserName: user.GetName(),
+	})
 }
 
 // PurgeUserRecords removes a record from the backing LRU cache before expiry
 func (c *Collection) purgeUserRecords(id string) {
 	c.cache.Remove(id)
+	c.userTimeoutCache.Delete(id)
 	c.as.PurgeUserData(id)
 }
 

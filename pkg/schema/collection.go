@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rancher/apiserver/pkg/server"
 	"github.com/rancher/apiserver/pkg/types"
@@ -24,20 +25,22 @@ type Factory interface {
 	ByGVK(gvr schema.GroupVersionKind) string
 	OnChange(ctx context.Context, cb func())
 	AddTemplate(template ...Template)
+	GetUserCacheTimeout() map[string]*UserTimeoutCacheValue
 }
 
 type Collection struct {
-	toSync     int32
-	baseSchema *types.APISchemas
-	schemas    map[string]*types.APISchema
-	templates  map[string][]*Template
-	notifiers  map[int]func()
-	notifierID int
-	byGVR      map[schema.GroupVersionResource]string
-	byGVK      map[schema.GroupVersionKind]string
-	cache      *cache.LRUExpireCache
-	userCache  *cache.LRUExpireCache
-	lock       sync.RWMutex
+	toSync           int32
+	baseSchema       *types.APISchemas
+	schemas          map[string]*types.APISchema
+	templates        map[string][]*Template
+	notifiers        map[int]func()
+	notifierID       int
+	byGVR            map[schema.GroupVersionResource]string
+	byGVK            map[schema.GroupVersionKind]string
+	cache            *cache.LRUExpireCache
+	userCache        *cache.LRUExpireCache
+	userTimeoutCache *sync.Map
+	lock             sync.RWMutex
 
 	ctx     context.Context
 	running map[string]func()
@@ -53,6 +56,11 @@ type Template struct {
 	Store        types.Store
 	Start        func(ctx context.Context) error
 	StoreFactory func(types.Store) types.Store
+}
+
+type UserTimeoutCacheValue struct {
+	Timeout  time.Time `json:"timeout"`
+	UserName string    `json:"userName"`
 }
 
 func WrapServer(factory Factory, server *server.Server) http.Handler {
@@ -79,17 +87,18 @@ func WrapServer(factory Factory, server *server.Server) http.Handler {
 
 func NewCollection(ctx context.Context, baseSchema *types.APISchemas, access accesscontrol.AccessSetLookup) *Collection {
 	return &Collection{
-		baseSchema: baseSchema,
-		schemas:    map[string]*types.APISchema{},
-		templates:  map[string][]*Template{},
-		byGVR:      map[schema.GroupVersionResource]string{},
-		byGVK:      map[schema.GroupVersionKind]string{},
-		cache:      cache.NewLRUExpireCache(1000),
-		userCache:  cache.NewLRUExpireCache(1000),
-		notifiers:  map[int]func(){},
-		ctx:        ctx,
-		as:         access,
-		running:    map[string]func(){},
+		baseSchema:       baseSchema,
+		schemas:          map[string]*types.APISchema{},
+		templates:        map[string][]*Template{},
+		byGVR:            map[schema.GroupVersionResource]string{},
+		byGVK:            map[schema.GroupVersionKind]string{},
+		cache:            cache.NewLRUExpireCache(1000),
+		userCache:        cache.NewLRUExpireCache(1000),
+		userTimeoutCache: &sync.Map{},
+		notifiers:        map[int]func(){},
+		ctx:              ctx,
+		as:               access,
+		running:          map[string]func(){},
 	}
 }
 
@@ -132,6 +141,7 @@ func (c *Collection) Reset(schemas map[string]*types.APISchema) {
 	c.byGVK = byGVK
 	for _, k := range c.cache.Keys() {
 		c.cache.Remove(k)
+		c.userTimeoutCache.Delete(k)
 	}
 	c.lock.Unlock()
 	c.lock.RLock()
@@ -239,4 +249,17 @@ func (c *Collection) AddTemplate(templates ...Template) {
 			c.templates[""] = append(c.templates[""], &templates[i])
 		}
 	}
+}
+
+func (c *Collection) GetUserCacheTimeout() map[string]*UserTimeoutCacheValue {
+	getAllPairsFromSyncMap := func(sm *sync.Map) map[string]*UserTimeoutCacheValue {
+		result := make(map[string]*UserTimeoutCacheValue)
+		sm.Range(func(k, v interface{}) bool {
+			result[k.(string)] = v.(*UserTimeoutCacheValue)
+			return true
+		})
+		return result
+	}
+
+	return getAllPairsFromSyncMap(c.userTimeoutCache)
 }

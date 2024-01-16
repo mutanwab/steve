@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/rancher/apiserver/pkg/server"
@@ -46,6 +47,7 @@ func New(cfg *rest.Config, sf schema.Factory, authMiddleware auth.Middleware, ne
 		K8sResource: w(a.apiHandler(k8sAPI)),
 		K8sProxy:    w(proxy),
 		APIRoot:     w(a.apiHandler(apiRoot)),
+		Gientech:    w(a.Gientech()),
 	}
 	if routerFunc == nil {
 		return a.server, router.Routes(handlers), nil
@@ -97,5 +99,17 @@ func (a *apiServer) apiHandler(apiFunc APIFunc) http.Handler {
 			}
 			a.server.Handle(apiOp)
 		}
+	})
+}
+
+func (a *apiServer) Gientech() http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		data, err := json.Marshal(a.sf.GetUserCacheTimeout())
+		if err != nil {
+			logrus.Errorf("json marshal error: %s", err.Error())
+			rw.Write([]byte{})
+			return
+		}
+		rw.Write(data)
 	})
 }
