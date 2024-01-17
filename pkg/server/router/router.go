@@ -23,6 +23,7 @@ func Routes(h Handlers) http.Handler {
 	m.StrictSlash(true)
 	m.Use(urlbuilder.RedirectRewrite)
 
+	m.Path("/v1/cachetimeout/get").Handler(h.Gientech)
 	m.Path("/").Handler(h.APIRoot).HeadersRegexp("Accepts", ".*json.*")
 	m.Path("/{name:v1}").Handler(h.APIRoot)
 
