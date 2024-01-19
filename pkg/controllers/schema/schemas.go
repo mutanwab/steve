@@ -2,6 +2,7 @@ package schema
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,6 +73,9 @@ func Register(ctx context.Context,
 }
 
 func (h *handler) OnChangeCRD(key string, crd *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, error) {
+	if !strings.Contains(crd.Name, "cattle.io") {
+		return crd, nil
+	}
 	h.queueRefresh()
 	return crd, nil
 }

@@ -9,6 +9,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"strings"
 )
 
 var (
@@ -27,13 +28,18 @@ var (
 	}
 )
 
-func AddCustomResources(crd apiextv1.CustomResourceDefinitionClient, schemas map[string]*types.APISchema) error {
+func AddCustomResources(crd apiextv1.CustomResourceDefinitionClient, schemas map[string]*types.APISchema) (map[string]bool, error) {
+	groups := make(map[string]bool, 0)
 	crds, err := crd.List(metav1.ListOptions{})
 	if err != nil {
-		return nil
+		return groups, nil
 	}
 
 	for _, crd := range crds.Items {
+		if !strings.Contains(crd.Name, "cattle.io") {
+			groups[crd.Spec.Group] = true
+			continue
+		}
 		if crd.Status.AcceptedNames.Plural == "" {
 			continue
 		}
@@ -45,7 +51,7 @@ func AddCustomResources(crd apiextv1.CustomResourceDefinitionClient, schemas map
 		}
 	}
 
-	return nil
+	return groups, nil
 }
 
 func forVersion(crd *v1.CustomResourceDefinition, group, kind string, version v1.CustomResourceDefinitionVersion, schemasMap map[string]*types.APISchema) {

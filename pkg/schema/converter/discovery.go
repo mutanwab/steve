@@ -22,7 +22,7 @@ var (
 	}
 )
 
-func AddDiscovery(client discovery.DiscoveryInterface, schemasMap map[string]*types.APISchema) error {
+func AddDiscovery(client discovery.DiscoveryInterface, schemasMap map[string]*types.APISchema, groupsCrd map[string]bool) error {
 	groups, resourceLists, err := client.ServerGroupsAndResources()
 	if gd, ok := err.(*discovery.ErrGroupDiscoveryFailed); ok {
 		logrus.Errorf("Failed to read API for groups %v", gd.Groups)
@@ -37,6 +37,11 @@ func AddDiscovery(client discovery.DiscoveryInterface, schemasMap map[string]*ty
 		gv, err := schema.ParseGroupVersion(resourceList.GroupVersion)
 		if err != nil {
 			errs = append(errs, err)
+		}
+		if value, ok := groupsCrd[gv.Group]; ok {
+			if value {
+				continue
+			}
 		}
 
 		if err := refresh(gv, versions, resourceList, schemasMap); err != nil {
