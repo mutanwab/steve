@@ -48,7 +48,7 @@ func NewAccessStore(ctx context.Context, cacheResults bool, rbac v1.Interface) *
 func (l *AccessStore) AccessFor(user user.Info) *AccessSet {
 	var cacheKey string
 	if l.cache != nil {
-		cacheKey = l.CacheKey(user)
+		cacheKey = l.CacheKeyGet(user)
 		val, ok := l.cache.Get(cacheKey)
 		if ok {
 			as, _ := val.(*AccessSet)
