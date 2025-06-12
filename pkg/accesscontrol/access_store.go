@@ -4,7 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/sirupsen/logrus"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	v1 "github.com/rancher/wrangler/pkg/generated/controllers/rbac/v1"
@@ -18,9 +21,10 @@ type AccessSetLookup interface {
 }
 
 type AccessStore struct {
-	users  *policyRuleIndex
-	groups *policyRuleIndex
-	cache  *cache.LRUExpireCache
+	users     *policyRuleIndex
+	groups    *policyRuleIndex
+	cache     *cache.LRUExpireCache
+	UsersKeys sync.Map
 }
 
 type roleKey struct {
@@ -31,8 +35,9 @@ type roleKey struct {
 func NewAccessStore(ctx context.Context, cacheResults bool, rbac v1.Interface) *AccessStore {
 	revisions := newRoleRevision(ctx, rbac)
 	as := &AccessStore{
-		users:  newPolicyRuleIndex(true, revisions, rbac),
-		groups: newPolicyRuleIndex(false, revisions, rbac),
+		users:     newPolicyRuleIndex(true, revisions, rbac),
+		groups:    newPolicyRuleIndex(false, revisions, rbac),
+		UsersKeys: sync.Map{},
 	}
 	if cacheResults {
 		as.cache = cache.NewLRUExpireCache(50)
@@ -69,6 +74,7 @@ func (l *AccessStore) PurgeUserData(id string) {
 }
 
 func (l *AccessStore) CacheKey(user user.Info) string {
+	logrus.Info("==========user: %#v", user)
 	d := sha256.New()
 
 	l.users.addRolesToHash(d, user.GetName())
@@ -83,4 +89,21 @@ func (l *AccessStore) CacheKey(user user.Info) string {
 	}
 
 	return hex.EncodeToString(d.Sum(nil))
+}
+
+func (l *AccessStore) CacheKeyGet(user user.Info) string {
+	if strings.HasPrefix(user.GetName(), "u-") || strings.HasPrefix(user.GetName(), "user-") {
+		key, ok := l.UsersKeys.Load(user.GetName())
+		if ok {
+			return key.(string)
+		}
+		return l.CacheKeyAdd(user)
+	}
+	return l.CacheKey(user)
+}
+
+func (l *AccessStore) CacheKeyAdd(user user.Info) string {
+	key := l.CacheKey(user)
+	l.UsersKeys.Store(user.GetName(), key)
+	return key
 }

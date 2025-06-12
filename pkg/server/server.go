@@ -13,6 +13,7 @@ import (
 	"github.com/rancher/steve/pkg/auth"
 	"github.com/rancher/steve/pkg/client"
 	"github.com/rancher/steve/pkg/clustercache"
+	rbaccontroller "github.com/rancher/steve/pkg/controllers/rbac"
 	schemacontroller "github.com/rancher/steve/pkg/controllers/schema"
 	"github.com/rancher/steve/pkg/resources"
 	"github.com/rancher/steve/pkg/resources/common"
@@ -164,6 +165,12 @@ func setup(ctx context.Context, server *Server) error {
 		server.controllers.K8s.AuthorizationV1().SelfSubjectAccessReviews(),
 		ccache,
 		sf)
+	rbaccontroller.Register(ctx,
+		cols,
+		server.controllers.K8s.Discovery(),
+		server.controllers.RBAC.RoleBinding(),
+		server.controllers.RBAC.ClusterRoleBinding(),
+		asl.(*accesscontrol.AccessStore))
 
 	apiServer, handler, err := handler.New(server.RESTConfig, sf, server.authMiddleware, server.next, server.router)
 	if err != nil {
